@@ -1,0 +1,91 @@
+#20K-0134 20K-0355
+#include <linux/kernel.h>
+#include <linux/kthread.h>
+#include <linux/delay.h>
+
+int writer(void* data);
+int reader(void* data);
+
+DEFINE_SPINLOCK(mutex);
+DEFINE_SPINLOCK(wrt);
+
+char msg[256];
+int numreader = 0;
+int nread;
+int val1 = 32;
+
+
+int writer(void* data)
+{  
+spin_lock(&wrt);
+int temp = val1;
+val1 = val1 * 2;
+printk("writer modified value %d to: %d ", temp , val1);
+spin_unlock(&wrt);
+
+return 0;
+
+}
+
+int reader(void* data)
+{
+   
+spin_lock(&mutex);
+numreader++;
+if(numreader == 1) {
+spin_lock(&wrt);
+}
+spin_unlock(&mutex);
+printk("reader reads value %d", val1);
+
+spin_lock(&mutex);
+numreader--;
+if(numreader == 0) {
+spin_unlock(&wrt);
+}
+spin_unlock(&mutex);
+
+return 0;
+}
+
+
+asmlinkage long sys_readerwriter(void)
+{  
+
+int i;
+int numberOfReaders;
+struct task_struct *myWriter[5];
+numberOfReaders = 10;
+struct task_struct *readers[10];
+
+
+
+for(i = 0; i < 5; i++) {
+
+myWriter[i] =kthread_create(writer, NULL, "writer_thread");
+
+if(myWriter[i]){
+wake_up_process(myWriter[i]);
+}
+else{
+kthread_stop(myWriter[i]);
+}
+}
+
+
+for(i = 0; i < 10; i++)
+{
+
+readers[i] = kthread_create(reader, NULL, "reader_thread");
+if(readers[i]){
+wake_up_process(readers[i]);
+}
+else{
+kthread_stop(readers[i]);
+}
+}
+
+
+return 0;
+   
+}
